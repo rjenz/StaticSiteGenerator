@@ -1,7 +1,8 @@
-﻿namespace Generator;
+namespace Generator;
 
 using Configurations;
 using Logging;
+using Scriban;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Webp;
@@ -62,6 +63,8 @@ internal static class Program
 
         DelegatedProcessing(config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
         DelegatedProcessing(config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config, config.TemplateDir, config.DistDir, new string[]{".css", ".js"}, FileContentProcessing);
+        DelegatedProcessing(config, config.SrcDir, config.DistDir, new string[]{".css", ".js"}, FileContentProcessing);
     }
     
     private static void ResetDirectory(string dir)
@@ -78,7 +81,7 @@ internal static class Program
     {
         string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        string[] fileEndingBlacklist = {".md", ".scriban", ".css", ".js", ".bmp", ".jpeg", ".jpg", ".png"}; //ingore all files we will process separately
+        string[] fileEndingBlacklist = {".md", ".scriban-html", ".css", ".js", ".bmp", ".jpeg", ".jpg", ".png"}; //ingore all files we will process separately
         
         foreach (string srcFilePath in files)
         {
@@ -112,8 +115,8 @@ internal static class Program
         }
     }
 
-    private delegate void FileProcessingDelegate(string sourceFilePath, string destFilePath);
-    private static void DelegatedProcessing(string sourceDir, string destDir, string[] fileEndings, FileProcessingDelegate processingDelegate)
+    private delegate void FileProcessingDelegate(GeneratorConfiguration config, string sourceFilePath, string destFilePath);
+    private static void DelegatedProcessing(GeneratorConfiguration config, string sourceDir, string destDir, string[] fileEndings, FileProcessingDelegate processingDelegate)
     {
         string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
@@ -145,10 +148,10 @@ internal static class Program
             filesFound.Add(new Tuple<string, string>(srcFilePath, destFilePath));
         }
 
-        Parallel.ForEach(filesFound, new ParallelOptions(){MaxDegreeOfParallelism = 8,}, tuple => processingDelegate.Invoke(tuple.Item1, tuple.Item2));
+        Parallel.ForEach(filesFound, new ParallelOptions(){MaxDegreeOfParallelism = 8,}, tuple => processingDelegate.Invoke(config, tuple.Item1, tuple.Item2));
     }
 
-    private static void ProcessImages(string sourceFilePath, string destFilePath)
+    private static void ProcessImages(GeneratorConfiguration config, string sourceFilePath, string destFilePath)
     {
         LOGGER.Info($"Processing Image from {sourceFilePath}");
 
@@ -165,7 +168,7 @@ internal static class Program
             File.Delete(destFileThumbnailPath);
         }
         
-        WebpEncoder encoder = new WebpEncoder() {Quality = 80};
+        WebpEncoder encoder = new WebpEncoder() {Quality = config.WebPQuality};
         
         Image loadedImage = Image.Load(sourceFilePath);
 
@@ -177,5 +180,22 @@ internal static class Program
         loadedImage.SaveAsWebp(destFilePath, encoder);
         loadedImage.Mutate(image => image.Resize(thumbnailWidth, thumbnailHeight));
         loadedImage.SaveAsWebp(destFileThumbnailPath, encoder);
+    }
+
+    private static void FileContentProcessing(GeneratorConfiguration config, string sourceFilePath, string destFilePath)
+    {
+        LOGGER.Info($"Processing FileContent from {sourceFilePath}");
+
+        if(File.Exists(destFilePath))
+        {
+            File.Delete(destFilePath);
+        }
+        
+        string sourceContent = File.ReadAllText(sourceFilePath);
+        Template? template = Template.Parse(sourceContent);
+
+        string? result = template.Render(config);
+        
+        File.WriteAllText(destFilePath, result);
     }
 }

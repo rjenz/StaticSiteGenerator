@@ -67,8 +67,8 @@ internal static class Program
         ProcessDir(config.SrcDir, config.DistDir);
         LOGGER.Info($"Src files from {config.SrcDir} copied!");
 
-        //DelegatedProcessing(config,config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
-        //DelegatedProcessing(config,config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config,config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config,config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
 
         DelegatedProcessing(config, config.TemplateDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
         DelegatedProcessing(config, config.SrcDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
@@ -160,7 +160,7 @@ internal static class Program
             filesFound.Add(new Tuple<string, string>(srcFilePath, destFilePath));
         }
 
-        Parallel.ForEach(filesFound, new ParallelOptions {MaxDegreeOfParallelism = 8}, tuple => processingDelegate.Invoke(config, tuple.Item1, tuple.Item2));
+        Parallel.ForEach(filesFound, new ParallelOptions {MaxDegreeOfParallelism = Environment.ProcessorCount}, tuple => processingDelegate.Invoke(config, tuple.Item1, tuple.Item2));
     }
 
     private static void ProcessImages(GeneratorConfiguration config, string sourceFilePath, string destFilePath)
@@ -168,7 +168,7 @@ internal static class Program
         LOGGER.Info($"Processing Image from {sourceFilePath}");
 
         destFilePath = Path.ChangeExtension(destFilePath, ".webp");
-        string destFileThumbnailPath = Path.ChangeExtension(destFilePath, "_thumb.webp");
+        string destFileThumbnailPath = destFilePath.Replace(".webp", "_thumb.webp");
 
         if (File.Exists(destFilePath))
         {

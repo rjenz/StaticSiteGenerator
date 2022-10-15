@@ -1,6 +1,6 @@
 # StaticSiteGenrator
 
-A simple but strongly opinionated static site generator.
+A simple but strongly opinionated static site generator using [Scriban](https://github.com/scriban/scriban) and [Markdig](https://github.com/xoofx/markdig).
 Build in C# to help me with the maintenance of my Websites.
 [WebsiteTemplate](https://github.com/rjenz/WebsiteTemplate) implements most features this generator provides.
 

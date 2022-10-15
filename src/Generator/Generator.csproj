@@ -8,8 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.1"/>
-        <PackageReference Include="NLog" Version="5.0.4"/>
+        <PackageReference Include="Markdig" Version="0.30.4" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+        <PackageReference Include="NLog" Version="5.0.4" />
+        <PackageReference Include="Scriban" Version="5.5.0" />
     </ItemGroup>
 
 </Project>

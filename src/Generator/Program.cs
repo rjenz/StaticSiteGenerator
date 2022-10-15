@@ -6,6 +6,7 @@ using AngleSharp.Html.Parser;
 using Configurations;
 using Data;
 using Logging;
+using Markdig;
 using Scriban;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -222,7 +223,7 @@ internal static class Program
         foreach (Page page in config.Pages)
         {
             page.IsActive = true;
-            
+
             string pageDir = Path.Combine(config.PagesDir, Path.GetFileNameWithoutExtension(page.Link));
 
             if (!Directory.Exists(pageDir))
@@ -237,23 +238,48 @@ internal static class Program
                 File.Delete(destFilePath);
             }
 
+            config.Articles = GetArticlesForPage(pageDir);
+
             string templateContent = File.ReadAllText(templatePath);
-
             Template? template = Template.Parse(templateContent);
-
-            string? result = template.Render(config);
+            string? html = template.Render(config);
 
             var parser = new HtmlParser();
-            IHtmlDocument document = parser.ParseDocument(result);
-
+            IHtmlDocument document = parser.ParseDocument(html);
             var sw = new StringWriter();
-            document.ToHtml(sw, new PrettyMarkupFormatter());
+            document.ToHtml(sw, new MinifyMarkupFormatter());
             string htmlPrettified = sw.ToString();
 
             File.WriteAllText(destFilePath, htmlPrettified);
 
             page.IsActive = false;
         }
+    }
+
+    private static List<string> GetArticlesForPage(string pageDir)
+    {
+        var articles = new List<string>();
+
+        string[] sourceFiles = Directory.GetFiles(pageDir, "*", SearchOption.AllDirectories);
+
+        foreach (string sourceFile in sourceFiles)
+        {
+            if (sourceFile.EndsWith(".md"))
+            {
+                articles.Add(ProcessMarkdownArticle(sourceFile));
+            }
+        }
+
+        return articles;
+    }
+
+    private static string ProcessMarkdownArticle(string sourceFile)
+    {
+        string mdContent = File.ReadAllText(sourceFile);
+        MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+        string html = Markdown.ToHtml(mdContent, pipeline);
+        return $"<article>{html}</article>";
     }
 
     private delegate void FileProcessingDelegate(GeneratorConfiguration config, string sourceFilePath, string destFilePath);

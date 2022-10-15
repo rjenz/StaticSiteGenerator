@@ -11,6 +11,7 @@ public class Style
     public string Accent2Hover { get; set; } = "#FF0";
     public string FontFamily { get; set; } = "monospace";
     public string FontSize { get; set; } = "0.90em";
+    public string LineHeight { get; set; } = "1.5em";
     public string SmallSpacing { get; set; } = "16px";
     public string LargeSpacing { get; set; } = "32px";
     public string BorderRadius { get; set; } = "0px";

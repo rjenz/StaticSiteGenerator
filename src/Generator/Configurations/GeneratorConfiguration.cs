@@ -10,6 +10,7 @@ public class GeneratorConfiguration
     public string SrcDir { get; set; } = "src";
     public string PagesDir { get; set; } = "pages";
     public string ScribanTemplate { get; set; } = "template.scriban-html";
+    public string GalleryScribanTemplate { get; set; } = "gallery.scriban-html";
     public int WebPQuality { get; set; } = 80;
     public Style Style { get; set; } = new();
     public Auto Auto { get; set; } = new();

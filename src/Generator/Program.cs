@@ -1,5 +1,6 @@
 namespace Generator;
 
+using System.Text.RegularExpressions;
 using AngleSharp.Html;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
@@ -7,6 +8,8 @@ using Configurations;
 using Data;
 using Logging;
 using Markdig;
+using NaturalSort.Extension;
+using Newtonsoft.Json;
 using Scriban;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -16,6 +19,7 @@ using SixLabors.ImageSharp.Processing;
 
 internal static class Program
 {
+    private const string REGEX = @"<import\s+(?:[^>]*?\s+)?src=([""'])(.*?)\1>";
     private const string PROJECT_GENERATOR_CONFIG = "generator-config.json";
     private static readonly Logger LOGGER = Logger.GetInstance();
 
@@ -67,8 +71,8 @@ internal static class Program
         ProcessDir(config.SrcDir, config.DistDir);
         LOGGER.Info($"Src files from {config.SrcDir} copied!");
 
-        DelegatedProcessing(config,config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
-        DelegatedProcessing(config,config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config, config.TemplateDir, config.DistDir, new[] {".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config, config.SrcDir, config.DistDir, new[] {".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
 
         DelegatedProcessing(config, config.TemplateDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
         DelegatedProcessing(config, config.SrcDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
@@ -238,7 +242,7 @@ internal static class Program
                 File.Delete(destFilePath);
             }
 
-            config.Articles = GetArticlesForPage(pageDir);
+            config.Articles = GetArticlesForPage(config, pageDir);
 
             string templateContent = File.ReadAllText(templatePath);
             Template? template = Template.Parse(templateContent);
@@ -250,36 +254,119 @@ internal static class Program
             document.ToHtml(sw, new MinifyMarkupFormatter());
             string htmlPrettified = sw.ToString();
 
-            File.WriteAllText(destFilePath, htmlPrettified);
+            File.WriteAllText(destFilePath, html);
 
             page.IsActive = false;
         }
     }
 
-    private static List<string> GetArticlesForPage(string pageDir)
+    private static List<string> GetArticlesForPage(GeneratorConfiguration config, string pageDir)
     {
         var articles = new List<string>();
 
         string[] sourceFiles = Directory.GetFiles(pageDir, "*", SearchOption.AllDirectories);
+        sourceFiles = sourceFiles.OrderBy(x => x, StringComparison.OrdinalIgnoreCase.WithNaturalSort()).ToArray();
 
         foreach (string sourceFile in sourceFiles)
         {
             if (sourceFile.EndsWith(".md"))
             {
-                articles.Add(ProcessMarkdownArticle(sourceFile));
+                articles.Add(ProcessMarkdownArticle(config, sourceFile));
             }
         }
 
         return articles;
     }
 
-    private static string ProcessMarkdownArticle(string sourceFile)
+    private static string ProcessMarkdownArticle(GeneratorConfiguration config, string sourceFile)
     {
         string mdContent = File.ReadAllText(sourceFile);
         MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
         string html = Markdown.ToHtml(mdContent, pipeline);
+
+        const RegexOptions OPTIONS = RegexOptions.Multiline;
+
+        foreach (Match match in Regex.Matches(html, REGEX, OPTIONS))
+        {
+            string importedFile = match.Groups[^1].Value;
+            string importedFilePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, importedFile));
+
+            if (importedFilePath.EndsWith("_gallery.json"))
+            {
+                string insert = BuildGalleryFromJson(config, importedFilePath);
+                html = html.Replace(match.Groups[0].Value, insert);
+            }
+            else
+            {
+                if (File.Exists(importedFilePath))
+                {
+                    string insert = File.ReadAllText(importedFilePath);
+                    html = html.Replace(match.Groups[0].Value, insert);
+                }
+                else
+                {
+                    throw new Exception($"Cannot import {importedFilePath}");
+                }
+            }
+        }
+
         return $"<article>{html}</article>";
+    }
+
+    private static string BuildGalleryFromJson(GeneratorConfiguration config, string jsonFile)
+    {
+        if (!File.Exists(jsonFile))
+        {
+            throw new Exception($"Cannot import {jsonFile}");
+        }
+
+        string templatePath = Path.Combine(config.TemplateDir, config.GalleryScribanTemplate);
+
+        if (!File.Exists(templatePath))
+        {
+            throw new Exception($"Scriban Template {config.GalleryScribanTemplate} does not exists at {config.TemplateDir}!");
+        }
+
+        string importedFileContent = File.ReadAllText(jsonFile);
+        var gallery = JsonConvert.DeserializeObject<Gallery>(importedFileContent);
+
+        if (gallery == null)
+        {
+            throw new InvalidOperationException($"Could not parse {jsonFile} to Gallery!");
+        }
+
+        foreach (GalleryItem galleryItem in gallery.Items)
+        {
+            if (galleryItem.Image == null)
+            {
+                continue;
+            }
+
+            string galleryItemFullPath = Path.Combine(config.SrcDir, galleryItem.Image);
+
+            if (!File.Exists(galleryItemFullPath))
+            {
+                throw new Exception($"Gallery Image {galleryItem.Image} not found!");
+            }
+
+            Image loadedImage = Image.Load(galleryItemFullPath);
+
+            galleryItem.Width = loadedImage.Width;
+            galleryItem.Height = loadedImage.Height;
+            
+            galleryItem.ThumbWidth = loadedImage.Width / 2;
+            galleryItem.ThumbHeight = loadedImage.Height / 2;
+
+            galleryItem.Image = Path.ChangeExtension(galleryItem.Image, ".webp");
+            galleryItem.Thumbnail = galleryItem.Image.Replace(".webp", "_thumb.webp");
+        }
+
+        string templateContent = File.ReadAllText(templatePath);
+        Template? template = Template.Parse(templateContent);
+        string html = template.Render(gallery);
+
+        return html;
     }
 
     private delegate void FileProcessingDelegate(GeneratorConfiguration config, string sourceFilePath, string destFilePath);

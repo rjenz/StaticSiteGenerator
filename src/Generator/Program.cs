@@ -2,6 +2,11 @@
 
 using Configurations;
 using Logging;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 internal static class Program
 {
@@ -54,6 +59,9 @@ internal static class Program
         
         ProcessDir(config.SrcDir, config.DistDir);
         LOGGER.Info($"Src files from {config.SrcDir} copied!");
+
+        DelegatedProcessing(config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        DelegatedProcessing(config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
     }
     
     private static void ResetDirectory(string dir)
@@ -94,8 +102,80 @@ internal static class Program
                     Directory.CreateDirectory(destFileDirPath);
                 }
             }
+
+            if(File.Exists(destFilePath))
+            {
+                File.Delete(destFilePath);
+            };
             
             File.Copy(srcFilePath, destFilePath);
         }
+    }
+
+    private delegate void FileProcessingDelegate(string sourceFilePath, string destFilePath);
+    private static void DelegatedProcessing(string sourceDir, string destDir, string[] fileEndings, FileProcessingDelegate processingDelegate)
+    {
+        string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+
+        List<Tuple<string, string>> filesFound = new List<Tuple<string, string>>();
+
+        foreach (string srcFilePath in files)
+        {
+            if(!fileEndings.Any(fe => srcFilePath.EndsWith(fe)))
+            {
+                continue;
+            }
+
+            string destFilePath = srcFilePath.Replace(sourceDir, destDir);
+            string? destFileDirPath = Path.GetDirectoryName(destFilePath);
+
+            if (destFileDirPath != null)
+            {
+                if (!Directory.Exists(destFileDirPath))
+                {
+                    Directory.CreateDirectory(destFileDirPath);
+                }
+            }
+
+            if(File.Exists(destFilePath))
+            {
+                File.Delete(destFilePath);
+            };
+            
+            filesFound.Add(new Tuple<string, string>(srcFilePath, destFilePath));
+        }
+
+        Parallel.ForEach(filesFound, new ParallelOptions(){MaxDegreeOfParallelism = 8,}, tuple => processingDelegate.Invoke(tuple.Item1, tuple.Item2));
+    }
+
+    private static void ProcessImages(string sourceFilePath, string destFilePath)
+    {
+        LOGGER.Info($"Processing Image from {sourceFilePath}");
+
+        destFilePath = Path.ChangeExtension(destFilePath, ".webp");
+        string destFileThumbnailPath = Path.ChangeExtension(destFilePath, "_thumb.webp");
+
+        if(File.Exists(destFilePath))
+        {
+            File.Delete(destFilePath);
+        }
+
+        if (File.Exists(destFileThumbnailPath))
+        {
+            File.Delete(destFileThumbnailPath);
+        }
+        
+        WebpEncoder encoder = new WebpEncoder() {Quality = 80};
+        
+        Image loadedImage = Image.Load(sourceFilePath);
+
+        int thumbnailWidth = loadedImage.Width / 2;
+        int thumbnailHeight = loadedImage.Height / 2;
+
+        loadedImage.Metadata.ExifProfile = null;
+
+        loadedImage.SaveAsWebp(destFilePath, encoder);
+        loadedImage.Mutate(image => image.Resize(thumbnailWidth, thumbnailHeight));
+        loadedImage.SaveAsWebp(destFileThumbnailPath, encoder);
     }
 }

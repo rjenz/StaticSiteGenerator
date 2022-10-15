@@ -1,6 +1,10 @@
 namespace Generator;
 
+using AngleSharp.Html;
+using AngleSharp.Html.Dom;
+using AngleSharp.Html.Parser;
 using Configurations;
+using Data;
 using Logging;
 using Scriban;
 using SixLabors.ImageSharp;
@@ -37,13 +41,14 @@ internal static class Program
         }
 
         Environment.CurrentDirectory = args[0];
-        
+
         config.TemplateDir = Path.GetFullPath(config.TemplateDir);
         config.DistDir = Path.GetFullPath(config.DistDir);
         config.SrcDir = Path.GetFullPath(config.SrcDir);
-        
+        config.PagesDir = Path.GetFullPath(config.PagesDir);
+
         LOGGER.Info("Ready!");
-        
+
         Run(config);
 
         LOGGER.Info("Done!");
@@ -57,16 +62,19 @@ internal static class Program
 
         ProcessDir(config.TemplateDir, config.DistDir);
         LOGGER.Info($"Template files from {config.TemplateDir} copied!");
-        
+
         ProcessDir(config.SrcDir, config.DistDir);
         LOGGER.Info($"Src files from {config.SrcDir} copied!");
 
-        DelegatedProcessing(config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
-        DelegatedProcessing(config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
-        DelegatedProcessing(config, config.TemplateDir, config.DistDir, new string[]{".css", ".js"}, FileContentProcessing);
-        DelegatedProcessing(config, config.SrcDir, config.DistDir, new string[]{".css", ".js"}, FileContentProcessing);
+        //DelegatedProcessing(config,config.TemplateDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+        //DelegatedProcessing(config,config.SrcDir, config.DistDir, new string[]{".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
+
+        DelegatedProcessing(config, config.TemplateDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
+        DelegatedProcessing(config, config.SrcDir, config.DistDir, new[] {".css", ".js"}, FileContentProcessing);
+
+        ProcessPages(config);
     }
-    
+
     private static void ResetDirectory(string dir)
     {
         if (Directory.Exists(dir))
@@ -82,7 +90,7 @@ internal static class Program
         string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
         string[] fileEndingBlacklist = {".md", ".scriban-html", ".css", ".js", ".bmp", ".jpeg", ".jpg", ".png"}; //ingore all files we will process separately
-        
+
         foreach (string srcFilePath in files)
         {
             if (srcFilePath.Contains("git"))
@@ -106,25 +114,26 @@ internal static class Program
                 }
             }
 
-            if(File.Exists(destFilePath))
+            if (File.Exists(destFilePath))
             {
                 File.Delete(destFilePath);
-            };
-            
+            }
+
+            ;
+
             File.Copy(srcFilePath, destFilePath);
         }
     }
 
-    private delegate void FileProcessingDelegate(GeneratorConfiguration config, string sourceFilePath, string destFilePath);
     private static void DelegatedProcessing(GeneratorConfiguration config, string sourceDir, string destDir, string[] fileEndings, FileProcessingDelegate processingDelegate)
     {
         string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
-        List<Tuple<string, string>> filesFound = new List<Tuple<string, string>>();
+        var filesFound = new List<Tuple<string, string>>();
 
         foreach (string srcFilePath in files)
         {
-            if(!fileEndings.Any(fe => srcFilePath.EndsWith(fe)))
+            if (!fileEndings.Any(fe => srcFilePath.EndsWith(fe)))
             {
                 continue;
             }
@@ -140,15 +149,17 @@ internal static class Program
                 }
             }
 
-            if(File.Exists(destFilePath))
+            if (File.Exists(destFilePath))
             {
                 File.Delete(destFilePath);
-            };
-            
+            }
+
+            ;
+
             filesFound.Add(new Tuple<string, string>(srcFilePath, destFilePath));
         }
 
-        Parallel.ForEach(filesFound, new ParallelOptions(){MaxDegreeOfParallelism = 8,}, tuple => processingDelegate.Invoke(config, tuple.Item1, tuple.Item2));
+        Parallel.ForEach(filesFound, new ParallelOptions {MaxDegreeOfParallelism = 8}, tuple => processingDelegate.Invoke(config, tuple.Item1, tuple.Item2));
     }
 
     private static void ProcessImages(GeneratorConfiguration config, string sourceFilePath, string destFilePath)
@@ -158,7 +169,7 @@ internal static class Program
         destFilePath = Path.ChangeExtension(destFilePath, ".webp");
         string destFileThumbnailPath = Path.ChangeExtension(destFilePath, "_thumb.webp");
 
-        if(File.Exists(destFilePath))
+        if (File.Exists(destFilePath))
         {
             File.Delete(destFilePath);
         }
@@ -167,9 +178,9 @@ internal static class Program
         {
             File.Delete(destFileThumbnailPath);
         }
-        
-        WebpEncoder encoder = new WebpEncoder() {Quality = config.WebPQuality};
-        
+
+        var encoder = new WebpEncoder {Quality = config.WebPQuality};
+
         Image loadedImage = Image.Load(sourceFilePath);
 
         int thumbnailWidth = loadedImage.Width / 2;
@@ -186,16 +197,64 @@ internal static class Program
     {
         LOGGER.Info($"Processing FileContent from {sourceFilePath}");
 
-        if(File.Exists(destFilePath))
+        if (File.Exists(destFilePath))
         {
             File.Delete(destFilePath);
         }
-        
+
         string sourceContent = File.ReadAllText(sourceFilePath);
         Template? template = Template.Parse(sourceContent);
 
         string? result = template.Render(config);
-        
+
         File.WriteAllText(destFilePath, result);
     }
+
+    private static void ProcessPages(GeneratorConfiguration config)
+    {
+        string templatePath = Path.Combine(config.TemplateDir, config.ScribanTemplate);
+
+        if (!File.Exists(templatePath))
+        {
+            throw new Exception($"Scriban Template {config.ScribanTemplate} does not exists at {config.TemplateDir}!");
+        }
+
+        foreach (Page page in config.Pages)
+        {
+            page.IsActive = true;
+            
+            string pageDir = Path.Combine(config.PagesDir, Path.GetFileNameWithoutExtension(page.Link));
+
+            if (!Directory.Exists(pageDir))
+            {
+                throw new Exception($"Page Directory for {page.Link} does not exists at {pageDir}!");
+            }
+
+            string destFilePath = Path.Combine(config.DistDir, page.Link);
+
+            if (File.Exists(destFilePath))
+            {
+                File.Delete(destFilePath);
+            }
+
+            string templateContent = File.ReadAllText(templatePath);
+
+            Template? template = Template.Parse(templateContent);
+
+            string? result = template.Render(config);
+
+            var parser = new HtmlParser();
+            IHtmlDocument document = parser.ParseDocument(result);
+
+            var sw = new StringWriter();
+            document.ToHtml(sw, new PrettyMarkupFormatter());
+            string htmlPrettified = sw.ToString();
+
+            File.WriteAllText(destFilePath, htmlPrettified);
+
+            page.IsActive = false;
+        }
+    }
+
+    private delegate void FileProcessingDelegate(GeneratorConfiguration config, string sourceFilePath, string destFilePath);
 }

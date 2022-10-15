@@ -1,5 +1,6 @@
 namespace Generator.Configurations;
 
+using Data;
 using Newtonsoft.Json;
 
 public class GeneratorConfiguration
@@ -8,11 +9,12 @@ public class GeneratorConfiguration
     public string DistDir { get; set; } = "dist";
     public string SrcDir { get; set; } = "src";
     public string PagesDir { get; set; } = "pages";
-    public string ScribanTemplate { get; set; } = "template.scriban";
+    public string ScribanTemplate { get; set; } = "template.scriban-html";
     public int WebPQuality { get; set; } = 80;
-    public Style Style { get; set; } = new Style();
-    public Auto Auto { get; set; } = new Auto();
-    public Website Website { get; set; } = new Website();
+    public Style Style { get; set; } = new();
+    public Auto Auto { get; set; } = new();
+    public Website Website { get; set; } = new();
+    public List<Page> Pages { get; set; }
 
     public static GeneratorConfiguration? LoadFromFile(string pathToWebsiteConfiguration)
     {

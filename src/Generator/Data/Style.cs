@@ -1,4 +1,4 @@
-﻿namespace Generator.Configurations;
+﻿namespace Generator.Data;
 
 public class Style
 {

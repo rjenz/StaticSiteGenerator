@@ -19,7 +19,8 @@ using SixLabors.ImageSharp.Processing;
 
 internal static class Program
 {
-    private const string REGEX = @"<import\s+(?:[^>]*?\s+)?src=([""'])(.*?)\1>";
+    private const string IMPORT_REGEX = @"<import\s+(?:[^>]*?\s+)?src=([""'])(.*?)\1>";
+    private const string GALLERY_REGEX = @"<gallery\s+(?:[^>]*?\s+)?src=([""'])(.*?)\1>";
     private const string PROJECT_GENERATOR_CONFIG = "generator-config.json";
     private static readonly Logger LOGGER = Logger.GetInstance();
 
@@ -287,27 +288,35 @@ internal static class Program
 
         const RegexOptions OPTIONS = RegexOptions.Multiline;
 
-        foreach (Match match in Regex.Matches(html, REGEX, OPTIONS))
+        foreach (Match match in Regex.Matches(html, GALLERY_REGEX, OPTIONS))
         {
             string importedFile = match.Groups[^1].Value;
             string importedFilePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, importedFile));
 
-            if (importedFilePath.EndsWith("_gallery.json"))
+            if (File.Exists(importedFilePath))
             {
                 string insert = BuildGalleryFromJson(config, importedFilePath);
                 html = html.Replace(match.Groups[0].Value, insert);
             }
             else
             {
-                if (File.Exists(importedFilePath))
-                {
-                    string insert = File.ReadAllText(importedFilePath);
-                    html = html.Replace(match.Groups[0].Value, insert);
-                }
-                else
-                {
-                    throw new Exception($"Cannot import {importedFilePath}");
-                }
+                throw new Exception($"Cannot gallery gallery {importedFilePath}");
+            }
+        }
+        
+        foreach (Match match in Regex.Matches(html, IMPORT_REGEX, OPTIONS))
+        {
+            string importedFile = match.Groups[^1].Value;
+            string importedFilePath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, importedFile));
+
+            if (File.Exists(importedFilePath))
+            {
+                string insert = File.ReadAllText(importedFilePath);
+                html = html.Replace(match.Groups[0].Value, insert);
+            }
+            else
+            {
+                throw new Exception($"Cannot gallery file {importedFilePath}");
             }
         }
 
@@ -316,11 +325,6 @@ internal static class Program
 
     private static string BuildGalleryFromJson(GeneratorConfiguration config, string jsonFile)
     {
-        if (!File.Exists(jsonFile))
-        {
-            throw new Exception($"Cannot import {jsonFile}");
-        }
-
         string templatePath = Path.Combine(config.TemplateDir, config.GalleryScribanTemplate);
 
         if (!File.Exists(templatePath))
@@ -358,8 +362,15 @@ internal static class Program
             galleryItem.ThumbWidth = loadedImage.Width / 2;
             galleryItem.ThumbHeight = loadedImage.Height / 2;
 
-            galleryItem.Image = Path.ChangeExtension(galleryItem.Image, ".webp");
-            galleryItem.Thumbnail = galleryItem.Image.Replace(".webp", "_thumb.webp");
+            if (galleryItem.Image.EndsWith("webp"))
+            {
+                galleryItem.Thumbnail = galleryItem.Image;
+            }
+            else
+            {
+                galleryItem.Image = Path.ChangeExtension(galleryItem.Image, ".webp");
+                galleryItem.Thumbnail = galleryItem.Image.Replace(".webp", "_thumb.webp");
+            }
         }
 
         string templateContent = File.ReadAllText(templatePath);

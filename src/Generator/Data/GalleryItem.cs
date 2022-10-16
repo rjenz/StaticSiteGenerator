@@ -6,7 +6,7 @@ public class GalleryItem
     public string? Alt { get; set; }
     public bool LightBox { get; set; }
     public string? Link { get; set; }
-    public string? Capten { get; set; }
+    public string? Caption { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
     public string? Thumbnail { get; set; }

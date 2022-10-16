@@ -194,8 +194,16 @@ internal static class Program
 
         loadedImage.Metadata.ExifProfile = null;
 
+        loadedImage.Mutate(image =>
+        {
+            image.BackgroundColor(Color.ParseHex(config.Style.TextBackground));
+        });
         loadedImage.SaveAsWebp(destFilePath, encoder);
-        loadedImage.Mutate(image => image.Resize(thumbnailWidth, thumbnailHeight));
+        
+        loadedImage.Mutate(image =>
+        {
+            image.Resize(thumbnailWidth, thumbnailHeight);
+        });
         loadedImage.SaveAsWebp(destFileThumbnailPath, encoder);
     }
 
@@ -362,9 +370,13 @@ internal static class Program
             galleryItem.ThumbWidth = loadedImage.Width / 2;
             galleryItem.ThumbHeight = loadedImage.Height / 2;
 
-            if (galleryItem.Image.EndsWith("webp"))
+            if (galleryItem.Image.EndsWith("webp") || (loadedImage.Height <= 640 || loadedImage.Width <= 640))
             {
+                galleryItem.Image = Path.ChangeExtension(galleryItem.Image, ".webp");
+                
                 galleryItem.Thumbnail = galleryItem.Image;
+                galleryItem.ThumbWidth = loadedImage.Width;
+                galleryItem.ThumbHeight = loadedImage.Height;
             }
             else
             {

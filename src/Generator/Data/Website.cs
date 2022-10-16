@@ -12,6 +12,8 @@ public class Website
     public string? ImprintText { get; set; }
     public string? LogoDescription { get; set; }
     public string? Logo { get; set; }
+    public int LogoWidth { get; set; } = 1280;
+    public int LogoHeight { get; set; } = 720;
     public string? ThemeColor { get; set; }
     public string? Title { get; set; }
     public string? Webmanifest { get; set; }

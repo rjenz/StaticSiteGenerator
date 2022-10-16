@@ -320,7 +320,7 @@ internal static class Program
             }
         }
 
-        return $"<article>{html}</article>";
+        return $"<{config.AreaHTMLTag}>{html}</{config.AreaHTMLTag}>";
     }
 
     private static string BuildGalleryFromJson(GeneratorConfiguration config, string jsonFile)

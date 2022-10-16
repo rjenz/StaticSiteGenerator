@@ -1,4 +1,4 @@
-namespace Generator;
+namespace Generator.Data;
 
 public class GalleryItem
 {

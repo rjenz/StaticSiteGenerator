@@ -66,10 +66,10 @@ internal static class Program
         ResetDirectory(config.DistDir);
         LOGGER.Info($"DistDir at {config.DistDir} created!");
 
-        ProcessDir(config.TemplateDir, config.DistDir);
+        ProcessDir(config, config.TemplateDir, config.DistDir);
         LOGGER.Info($"Template files from {config.TemplateDir} copied!");
 
-        ProcessDir(config.SrcDir, config.DistDir);
+        ProcessDir(config, config.SrcDir, config.DistDir);
         LOGGER.Info($"Src files from {config.SrcDir} copied!");
 
         DelegatedProcessing(config, config.TemplateDir, config.DistDir, new[] {".bmp", ".jpeg", ".jpg", ".png"}, ProcessImages);
@@ -91,7 +91,7 @@ internal static class Program
         Directory.CreateDirectory(dir);
     }
 
-    private static void ProcessDir(string sourceDir, string destDir)
+    private static void ProcessDir(GeneratorConfiguration config, string sourceDir, string destDir)
     {
         string[] files = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
 
@@ -99,14 +99,17 @@ internal static class Program
 
         foreach (string srcFilePath in files)
         {
-            if (srcFilePath.Contains("git"))
+            if (!config.DirsToScripInProcessing.All(dir => srcFilePath.StartsWith(Path.GetFullPath(dir))))
             {
-                continue;
-            }
+                if (srcFilePath.Contains("git"))
+                {
+                    continue;
+                }
 
-            if (fileEndingBlacklist.Any(feb => srcFilePath.EndsWith(feb)))
-            {
-                continue;
+                if (fileEndingBlacklist.Any(feb => srcFilePath.EndsWith(feb)))
+                {
+                    continue;
+                }   
             }
 
             string destFilePath = srcFilePath.Replace(sourceDir, destDir);
@@ -139,6 +142,11 @@ internal static class Program
 
         foreach (string srcFilePath in files)
         {
+            if (config.DirsToScripInProcessing.Any(dir => srcFilePath.StartsWith(Path.GetFullPath(dir))))
+            {
+                continue;
+            }
+            
             if (!fileEndings.Any(fe => srcFilePath.EndsWith(fe)))
             {
                 continue;
@@ -184,7 +192,7 @@ internal static class Program
         {
             File.Delete(destFileThumbnailPath);
         }
-        
+
         Image loadedImage = Image.Load(sourceFilePath);
 
         int thumbnailWidth = loadedImage.Width / 2;
@@ -192,16 +200,10 @@ internal static class Program
 
         loadedImage.Metadata.ExifProfile = null;
 
-        loadedImage.Mutate(image =>
-        {
-            image.BackgroundColor(Color.ParseHex(config.Style.TextBackground));
-        });
+        loadedImage.Mutate(image => { image.BackgroundColor(Color.ParseHex(config.Style.TextBackground)); });
         loadedImage.SaveAsWebp(destFilePath, new WebpEncoder {Quality = config.WebPQuality});
-        
-        loadedImage.Mutate(image =>
-        {
-            image.Resize(thumbnailWidth, thumbnailHeight);
-        });
+
+        loadedImage.Mutate(image => { image.Resize(thumbnailWidth, thumbnailHeight); });
         loadedImage.SaveAsWebp(destFileThumbnailPath, new WebpEncoder {Quality = config.WebPQualityThumbnails});
     }
 
@@ -254,15 +256,15 @@ internal static class Program
             string templateContent = File.ReadAllText(templatePath);
             Template? template = Template.Parse(templateContent);
             string? html = template.Render(config);
-            
+
             var parser = new HtmlParser();
             IHtmlDocument document = parser.ParseDocument(html);
             var sw = new StringWriter();
             document.ToHtml(sw, new MinifyMarkupFormatter());
             string htmlPrettified = sw.ToString();
-            
+
             htmlPrettified = htmlPrettified.Replace(@"<p></p>", "");
-            
+
             File.WriteAllText(destFilePath, htmlPrettified);
 
             page.IsActive = false;
@@ -311,7 +313,7 @@ internal static class Program
                 throw new Exception($"Cannot gallery gallery {importedFilePath}");
             }
         }
-        
+
         foreach (Match match in Regex.Matches(html, IMPORT_REGEX, OPTIONS))
         {
             string importedFile = match.Groups[^1].Value;
@@ -366,14 +368,14 @@ internal static class Program
 
             galleryItem.Width = loadedImage.Width;
             galleryItem.Height = loadedImage.Height;
-            
+
             galleryItem.ThumbWidth = loadedImage.Width / 2;
             galleryItem.ThumbHeight = loadedImage.Height / 2;
 
-            if (galleryItem.Image.EndsWith("webp") || (loadedImage.Height <= 640 || loadedImage.Width <= 640))
+            if (galleryItem.Image.EndsWith("webp") || loadedImage.Height <= 640 || loadedImage.Width <= 640)
             {
                 galleryItem.Image = Path.ChangeExtension(galleryItem.Image, ".webp");
-                
+
                 galleryItem.Thumbnail = galleryItem.Image;
                 galleryItem.ThumbWidth = loadedImage.Width;
                 galleryItem.ThumbHeight = loadedImage.Height;

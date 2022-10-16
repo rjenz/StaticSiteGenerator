@@ -8,6 +8,7 @@ public class GeneratorConfiguration
     public string TemplateDir { get; set; } = "template";
     public string DistDir { get; set; } = "dist";
     public string SrcDir { get; set; } = "src";
+    public List<string> DirsToScripInProcessing { get; set; } = new() {"src/browser"};
     public string PagesDir { get; set; } = "pages";
     public string ScribanTemplate { get; set; } = "template.scriban-html";
     public string GalleryScribanTemplate { get; set; } = "gallery.scriban-html";

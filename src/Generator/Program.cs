@@ -254,14 +254,16 @@ internal static class Program
             string templateContent = File.ReadAllText(templatePath);
             Template? template = Template.Parse(templateContent);
             string? html = template.Render(config);
-
+            
             var parser = new HtmlParser();
             IHtmlDocument document = parser.ParseDocument(html);
             var sw = new StringWriter();
             document.ToHtml(sw, new MinifyMarkupFormatter());
             string htmlPrettified = sw.ToString();
-
-            File.WriteAllText(destFilePath, html);
+            
+            htmlPrettified = htmlPrettified.Replace(@"<p></p>", "");
+            
+            File.WriteAllText(destFilePath, htmlPrettified);
 
             page.IsActive = false;
         }

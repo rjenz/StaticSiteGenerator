@@ -184,9 +184,7 @@ internal static class Program
         {
             File.Delete(destFileThumbnailPath);
         }
-
-        var encoder = new WebpEncoder {Quality = config.WebPQuality};
-
+        
         Image loadedImage = Image.Load(sourceFilePath);
 
         int thumbnailWidth = loadedImage.Width / 2;
@@ -198,13 +196,13 @@ internal static class Program
         {
             image.BackgroundColor(Color.ParseHex(config.Style.TextBackground));
         });
-        loadedImage.SaveAsWebp(destFilePath, encoder);
+        loadedImage.SaveAsWebp(destFilePath, new WebpEncoder {Quality = config.WebPQuality});
         
         loadedImage.Mutate(image =>
         {
             image.Resize(thumbnailWidth, thumbnailHeight);
         });
-        loadedImage.SaveAsWebp(destFileThumbnailPath, encoder);
+        loadedImage.SaveAsWebp(destFileThumbnailPath, new WebpEncoder {Quality = config.WebPQualityThumbnails});
     }
 
     private static void FileContentProcessing(GeneratorConfiguration config, string sourceFilePath, string destFilePath)

@@ -12,7 +12,8 @@ public class GeneratorConfiguration
     public string ScribanTemplate { get; set; } = "template.scriban-html";
     public string GalleryScribanTemplate { get; set; } = "gallery.scriban-html";
     public string AreaHTMLTag { get; set; } = "article";
-    public int WebPQuality { get; set; } = 80;
+    public int WebPQuality { get; set; } = 90;
+    public int WebPQualityThumbnails { get; set; } = 80;
     public Style Style { get; set; } = new();
     public Auto Auto { get; set; } = new();
     public Website Website { get; set; } = new();

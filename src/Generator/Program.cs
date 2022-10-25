@@ -128,8 +128,6 @@ internal static class Program
                 File.Delete(destFilePath);
             }
 
-            ;
-
             File.Copy(srcFilePath, destFilePath);
         }
     }
@@ -167,8 +165,6 @@ internal static class Program
             {
                 File.Delete(destFilePath);
             }
-
-            ;
 
             filesFound.Add(new Tuple<string, string>(srcFilePath, destFilePath));
         }

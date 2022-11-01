@@ -19,6 +19,7 @@ public class GeneratorConfiguration
     public Auto Auto { get; set; } = new();
     public Website Website { get; set; } = new();
     public List<Page> Pages { get; set; } = new();
+    public List<Social> Socials { get; set; } = new();
     public List<string> Articles { get; set; } = new();
 
     public static GeneratorConfiguration? LoadFromFile(string pathToWebsiteConfiguration)

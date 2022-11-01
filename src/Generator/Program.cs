@@ -101,7 +101,7 @@ internal static class Program
         {
             if (!config.DirsToScripInProcessing.All(dir => srcFilePath.StartsWith(Path.GetFullPath(dir))))
             {
-                if (srcFilePath.Contains("git"))
+                if (srcFilePath.Contains(".git"))
                 {
                     continue;
                 }
